@@ -1,6 +1,6 @@
 # Laboratorio de Modelado y Simulación
 
-Aplicación educativa local para estudiar métodos de búsqueda de raíces mediante iteraciones, visualizaciones geométricas, errores y análisis de convergencia. Implementa Bisección, Punto Fijo, Newton–Raphson y aceleración Δ² de Aitken.
+Aplicación educativa local para estudiar errores, métodos de búsqueda de raíces, interpolación de Lagrange y derivación numérica. El modo guiado para principiantes es el predeterminado; el modo avanzado deja visibles controles secundarios.
 
 ## Instalación
 
@@ -28,6 +28,17 @@ y ejecuta la aplicación. La instalación solo necesita conexión la primera vez
 La forma manual es:
 
 ```bash
+streamlit run app.py
+```
+
+Abrí la dirección local que muestra Streamlit (normalmente `http://localhost:8501`). En Linux también podés instalar todo manualmente desde cero:
+
+```bash
+sudo apt install python3 python3-venv       # Debian/Ubuntu, si todavía no están instalados
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
 streamlit run app.py
 ```
 
@@ -59,6 +70,7 @@ pytest -q
 - Identidad visual por método: ½ Bisección, ● Punto Fijo, ╱╲ Newton, ↗ Aitken, VS Comparación y 📖 Teoría.
 - Explicaciones breves centradas en qué busca cada método, cuándo conviene y qué hace en cada paso.
 - Constructor de funciones por interpolación de Lagrange con hasta 20 nodos.
+- Derivación desde una función o tabla mediante diferencias hacia adelante, hacia atrás y centrada, conservando fracciones exactas.
 - Visualización de cada base L_i(x), factores para los índices i y j, términos y_iL_i(x), polinomio final, gráfico y tabla de valores evaluados.
 - Precisión de presentación configurable hasta 15 decimales, sin redondeo interno.
 - Mensajes controlados para dominios inválidos, derivada o denominador casi nulos, ciclos y divergencia.
@@ -75,3 +87,20 @@ pytest -q
 4. Incorporar ejemplos y tests sin acoplar el cálculo a la interfaz.
 
 La separación permite incorporar más adelante interpolación, integración, EDO y sistemas dinámicos sin reescribir el núcleo.
+
+## Ejemplos para comenzar
+
+- **Bisección:** `f(x)=x^3-x-2` en `[1,2]`.
+- **Newton–Raphson:** la misma función con `x₀=1.5`.
+- **Punto fijo y Aitken:** `f(x)=x-cos(x)`, `g(x)=cos(x)` y `x₀=0.5`.
+- **Lagrange:** nodos `(0,1)`, `(1,3)` y `(2,0)`.
+- **Derivación:** `f(x)=x^2`, `x₀=1`, `h=1/2` y diferencia centrada. El resultado exacto es `2`.
+
+## Próximas etapas
+
+Estas funciones se documentan como hoja de ruta y **no están implementadas todavía**:
+
+- **Antes del 28/8:** rectángulos, trapecios y Simpson.
+- **Antes del 4/9:** Monte Carlo básico e intervalos de confianza.
+- **Antes del 11/9:** Euler, Euler modificado y Runge–Kutta.
+- **Después del primer parcial:** sistemas dinámicos, diagramas de fase, bifurcaciones, sistemas lineales y modelos.
