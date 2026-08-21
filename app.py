@@ -15,11 +15,12 @@ sys.path.insert(0, str(BASE_DIR))
 from core.convergence import contraction_analysis, observed_order
 from core.parser import X, parse_function
 from examples.root_examples import EXAMPLES
-from methods import aitken_accelerate, basis_factor, bisection, build_lagrange, fixed_point, newton
+from methods import (aitken_accelerate, basis_factor, bisection, build_lagrange,
+                     differentiate_function, differentiate_nodes, fixed_point, newton)
 from methods.bisection import theoretical_iterations
 from visualizations.plots import (
     approximation_plot, bisection_plot, convergence_plot, fixed_point_plot,
-    lagrange_plot, newton_all_tangents_plot, newton_plot,
+    differentiation_plot, lagrange_plot, newton_all_tangents_plot, newton_plot,
 )
 
 st.set_page_config(page_title="Modelado y Simulación", page_icon="◑", layout="wide")
@@ -48,6 +49,7 @@ METHODS = {
     "Aitken": ("↗", "Aitken Δ²", "Tomar un atajo para acelerar una sucesión."),
     "Comparar métodos": ("VS", "Comparar métodos", "Contrastar aproximaciones, errores y velocidad."),
     "Construir función": ("Σ", "Construir una función", "Interpolar datos discretos con bases de Lagrange."),
+    "Derivación numérica": ("f′", "Derivación numérica", "Estimar una pendiente a partir de valores cercanos."),
     "Laboratorio": ("⚗", "Laboratorio", "Modificar parámetros y observar consecuencias."),
     "Teoría": ("📖", "Teoría", "Fundamentos matemáticos de los métodos."),
 }
@@ -76,6 +78,11 @@ def explain(what: str, when: str, action: str, formula: str) -> None:
         col2.markdown(f"**Cuándo conviene**  \n{when}")
         col3.markdown(f"**Qué hace en cada paso**  \n{action}")
         st.latex(formula)
+        if not st.session_state.get("advanced_mode", False):
+            st.markdown("**Datos necesarios:** una función o valores, un punto inicial y los parámetros que aparecen debajo.  \n"
+                        "**Antes de ejecutar:** revisá el indicador de condiciones.  \n"
+                        "**Resultado:** es una aproximación; la tabla muestra cómo se obtuvo y el gráfico ayuda a interpretarla.  \n"
+                        "**Errores frecuentes:** datos fuera del dominio, condiciones del método incumplidas o muy pocas iteraciones.")
 
 
 def _append_symbol(target: str, symbol: str) -> None:
@@ -643,16 +650,128 @@ def lagrange_page() -> None:
                        "lagrange_valores_evaluados.csv", "text/csv")
 
 
+def _set_derivative_example() -> None:
+    st.session_state.update(der_source="Función", der_function="x^2", der_point="1", der_h="1/2",
+                            der_xs="0, 1/2, 1, 3/2, 2", der_ys="0, 1/4, 1, 9/4, 4")
+    st.session_state.pop("der_result", None)
+
+
+def _clear_derivative() -> None:
+    st.session_state.update(der_function="", der_point="", der_h="", der_xs="", der_ys="")
+    st.session_state.pop("der_result", None)
+
+
+def _exact_list(text: str) -> list[str]:
+    values = [value.strip() for value in text.replace(";", ",").split(",") if value.strip()]
+    if not values:
+        raise ValueError("Ingresá valores separados por comas; podés usar fracciones como 1/2.")
+    return values
+
+
+def differentiation_page() -> None:
+    method_header("Derivación numérica")
+    explain("Estimar la pendiente f′(x₀) usando valores cercanos.",
+            "Cuando hay una tabla o evaluar la derivada exacta es difícil.",
+            "Calcula un cociente de cambios; h es la distancia horizontal entre nodos.",
+            r"f'(x_0)\approx\frac{f(x_0+h)-f(x_0-h)}{2h}")
+    st.info("**h** es el tamaño de paso: una distancia menor suele reducir el error de truncamiento, pero datos redondeados pueden perder precisión.")
+    section(1, "Ingresar datos")
+    with st.container(border=True):
+        buttons = st.columns(2)
+        buttons[0].button("Cargar ejemplo", on_click=_set_derivative_example, use_container_width=True)
+        buttons[1].button("Limpiar datos", on_click=_clear_derivative, use_container_width=True)
+        source = st.radio("Datos disponibles", ["Función", "Tabla de nodos"], horizontal=True,
+                          key="der_source", help="Elegí función si conocés f(x); tabla si solo tenés mediciones.")
+        ftext = ""
+        if source == "Función":
+            ftext = st.text_input("f(x)", "x^2", key="der_function", help="Usá x como variable; se admiten potencias, raíces y funciones usuales.")
+            math_keyboard("der_function")
+            columns = st.columns(2)
+            point = columns[0].text_input("Punto x₀", "1", key="der_point", help="Entero, decimal o fracción.")
+            h = columns[1].text_input("Paso h", "1/2", key="der_h", help="Debe ser positivo y ubicar los puntos dentro del dominio.")
+        else:
+            xs_text = st.text_input("Nodos x", "0, 1/2, 1, 3/2, 2", key="der_xs", help="Separados por comas y con el mismo paso.")
+            ys_text = st.text_input("Valores y=f(x)", "0, 1/4, 1, 9/4, 4", key="der_ys", help="Uno por cada nodo x.")
+            point = st.text_input("Punto x₀ (debe ser un nodo)", "1", key="der_point")
+            h = None
+        labels = {"Diferencia hacia adelante": "forward", "Diferencia hacia atrás": "backward",
+                  "Diferencia centrada": "centered"}
+        label = st.selectbox("Esquema", list(labels), index=2,
+                             help="Centrada es de orden 2; adelante y atrás son de orden 1.")
+        show_decimal = st.checkbox("Mostrar aproximaciones decimales", False)
+        digits = int(st.number_input("Decimales", 1, 15, 8, disabled=not show_decimal))
+    section(2, "Resumen de lo ingresado")
+    parsed = render_formula(ftext, "f") if source == "Función" and ftext.strip() else None
+    st.write(f"**Fuente:** {source} · **x₀:** {point or '—'} · **Esquema:** {label}")
+    if point and (parsed is not None or source == "Tabla de nodos"):
+        st.success("🟢 Datos básicos presentes. Al ejecutar se verificarán dominio, nodos y separación.")
+    else:
+        st.error("🔴 Faltan datos. Completá la función o tabla y el punto x₀.")
+    if label != "Diferencia centrada":
+        st.warning("🟡 Esquema de primer orden: puede ser útil en un extremo, pero suele ser menos preciso.")
+    run = st.button("Ejecutar derivación", type="primary", disabled=not point, use_container_width=True)
+    if run:
+        try:
+            if source == "Función":
+                if parsed is None:
+                    raise ValueError("Corregí la función antes de ejecutar.")
+                result = differentiate_function(parsed.expression, point, h, labels[label])
+            else:
+                result = differentiate_nodes(_exact_list(xs_text), _exact_list(ys_text), point, labels[label])
+            st.session_state.der_result = (result, show_decimal, digits)
+        except ValueError as exc:
+            st.error(f"No se pudo calcular: {exc}")
+    if "der_result" not in st.session_state:
+        return
+    result, show_decimal, digits = st.session_state.der_result
+    section(3, "Gráfico principal")
+    st.plotly_chart(differentiation_plot(result), use_container_width=True)
+    st.caption("La recta naranja pasa por el punto seleccionado con la pendiente aproximada. Los puntos rojos son los valores usados en el cociente.")
+    section(4, "Resultado explicado")
+    formulas = {
+        "Diferencia hacia adelante": r"f'(x_0)\approx\frac{f(x_0+h)-f(x_0)}h",
+        "Diferencia hacia atrás": r"f'(x_0)\approx\frac{f(x_0)-f(x_0-h)}h",
+        "Diferencia centrada": r"f'(x_0)\approx\frac{f(x_0+h)-f(x_0-h)}{2h}",
+    }
+    st.latex(formulas[result.scheme])
+    numerator = (result.values[-1].y - result.values[0].y)
+    denominator = result.h * (2 if result.scheme == "Diferencia centrada" else 1)
+    st.latex(rf"f'({sp.latex(result.point)})\approx\frac{{{sp.latex(result.values[-1].y)}-({sp.latex(result.values[0].y)})}}{{{sp.latex(denominator)}}}={sp.latex(result.approximation)}")
+    decimal = f" ≈ {sp.N(result.approximation, digits)}" if show_decimal else ""
+    st.success(f"La pendiente aproximada es **{result.approximation}**{decimal}. El esquema es de orden O(h^{result.order}).")
+    if result.exact_derivative is not None:
+        st.write(f"Derivada exacta en x₀: **{result.exact_derivative}**. Error firmado (aproximación − exacto): **{result.signed_error}**; absoluto: **{result.absolute_error}**; relativo: **{result.relative_error if result.relative_error is not None else 'no definido porque la derivada exacta es 0'}**.")
+    else:
+        st.info("Como se ingresó una tabla, no hay una derivada exacta de referencia ni errores respecto de ella.")
+    section(5, "Tabla de valores utilizados")
+    rows = [{"Rol": value.role, "x exacto": str(value.x), "f(x) exacto": str(value.y)} for value in result.values]
+    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+    with st.expander("Ver desarrollo y significado del orden"):
+        st.write("Orden 1 significa que el error de truncamiento decrece aproximadamente como h; orden 2, como h², bajo condiciones de suavidad.")
+    st.markdown(f"**Resumen:** con {result.scheme.lower()} y h={result.h}, la pendiente estimada en x₀={result.point} es {result.approximation}.")
+
+
 def home_page() -> None:
     method_header("Inicio")
     st.write("Todas las pantallas siguen el mismo recorrido: datos → resumen → gráfico → resultado → tabla → convergencia.")
+    st.subheader("¿Qué método elijo?")
+    st.markdown("""
+- **Tengo un intervalo con cambio de signo → Bisección.**
+- **Tengo una función g(x) contractiva → Punto Fijo.**
+- **Tengo un valor inicial y puedo derivar → Newton–Raphson.**
+- **Tengo una sucesión que converge lentamente → Aitken.**
+- **Tengo nodos discretos → Interpolación de Lagrange o Derivación numérica.**
+""")
     cards = [
+        ("±", "1. Conceptos básicos y errores", "Interpretá error absoluto, relativo, residuo y convergencia."),
         ("½", "Bisección", "Confiable; requiere un intervalo con cambio de signo."),
         ("●", "Punto Fijo", "Muestra la convergencia con un diagrama de telaraña."),
         ("╱╲", "Newton–Raphson", "Rápido, pero depende de x₀ y de la derivada."),
         ("↗", "Aitken Δ²", "Acelera una sucesión de Punto Fijo que ya converge."),
         ("VS", "Comparación", "Contrasta errores, raíces y cantidad de pasos."),
-        ("Σ", "Construir función", "Interpola hasta 20 nodos con bases de Lagrange."),
+        ("Σ", "Interpolación de Lagrange", "Interpola hasta 20 nodos con bases de Lagrange."),
+        ("f′", "Derivación numérica", "Estima pendientes con diferencias adelante, atrás o centrada."),
+        ("🗓", "Próximamente", "Integración, Monte Carlo y ecuaciones diferenciales; todavía no implementados."),
         ("📖", "Teoría", "Explica las hipótesis detrás de cada algoritmo."),
     ]
     for start in range(0, len(cards), 3):
@@ -697,8 +816,12 @@ NAVIGATION = {"⌂  Inicio": "Inicio", "½  Bisección": "Bisección", "●  Pun
               "╱╲  Newton–Raphson": "Newton-Raphson", "↗  Aitken Δ²": "Aitken",
               "VS  Comparar métodos": "Comparar métodos", "⚗  Laboratorio": "Laboratorio",
               "Σ  Construir función": "Construir función",
+              "f′  Derivación numérica": "Derivación numérica",
               "📖  Teoría": "Teoría"}
 st.sidebar.title("MODELADO Y SIMULACIÓN")
+st.sidebar.toggle("Modo avanzado", value=False, key="advanced_mode",
+                  help="Muestra controles secundarios; el modo guiado es el predeterminado.")
+st.sidebar.caption("🟢 cumplida · 🟡 dudosa · 🔴 no cumplida")
 page = NAVIGATION[st.sidebar.radio("Navegación", list(NAVIGATION))]
 
 if page == "Inicio": home_page()
@@ -708,5 +831,6 @@ elif page == "Newton-Raphson": newton_page()
 elif page == "Aitken": aitken_page()
 elif page == "Comparar métodos": comparison_page()
 elif page == "Construir función": lagrange_page()
+elif page == "Derivación numérica": differentiation_page()
 elif page == "Laboratorio": laboratory_page()
 else: theory_page()

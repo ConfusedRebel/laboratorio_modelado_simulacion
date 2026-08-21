@@ -121,3 +121,29 @@ def lagrange_plot(result, evaluation_values=None, show_components=False):
         xaxis_title="x", yaxis_title="P(x)", hovermode="x unified",
     )
     return figure
+
+
+def differentiation_plot(result):
+    """Grafica los datos usados y la recta con la pendiente aproximada."""
+    used_x = np.asarray([float(value.x) for value in result.values])
+    used_y = np.asarray([float(value.y) for value in result.values])
+    center, slope = float(result.point), float(result.approximation)
+    span = max(float(np.ptp(used_x)), abs(float(result.h)), 1e-3)
+    xs = np.linspace(center - 2 * span, center + 2 * span, 500)
+    if result.expression is not None:
+        function = sp.lambdify(sp.Symbol("x", real=True), result.expression, "numpy")
+        with np.errstate(all="ignore"):
+            ys = np.asarray(function(xs), dtype=float)
+        if ys.ndim == 0:
+            ys = np.full_like(xs, float(ys))
+    else:
+        xs, ys = used_x, used_y
+    center_y = float(result.expression.subs(sp.Symbol("x", real=True), result.point)) if result.expression is not None else float(np.interp(center, used_x, used_y))
+    line_x = np.linspace(center - span, center + span, 100)
+    figure = go.Figure()
+    figure.add_trace(go.Scatter(x=xs, y=ys, mode="lines+markers" if result.expression is None else "lines", name="f(x) / datos"))
+    figure.add_trace(go.Scatter(x=used_x, y=used_y, mode="markers", name="Valores utilizados", marker=dict(color="#e63946", size=11)))
+    figure.add_trace(go.Scatter(x=line_x, y=center_y + slope * (line_x - center), mode="lines", name="Pendiente aproximada", line=dict(color="#f59e0b", width=4)))
+    figure.add_trace(go.Scatter(x=[center], y=[center_y], mode="markers", name="Punto x₀", marker=dict(color="#111827", size=12, symbol="diamond")))
+    figure.update_layout(title="Pendiente aproximada en el punto elegido", xaxis_title="x", yaxis_title="y")
+    return figure
