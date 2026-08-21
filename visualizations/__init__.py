@@ -1,0 +1,1 @@
+"""Gráficos Plotly reutilizables."""
