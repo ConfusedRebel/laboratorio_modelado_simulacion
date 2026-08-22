@@ -13,6 +13,7 @@ sys.path.insert(0, str(BASE_DIR))
 (BASE_DIR / "exports").mkdir(parents=True, exist_ok=True)
 
 from core.convergence import contraction_analysis, observed_order
+from core.calculator import calculate
 from core.parser import X, parse_function
 from examples.root_examples import EXAMPLES
 from methods import (aitken_accelerate, basis_factor, bisection, build_lagrange,
@@ -20,6 +21,8 @@ from methods import (aitken_accelerate, basis_factor, bisection, build_lagrange,
 from methods.bisection import theoretical_iterations
 from visualizations.plots import (
     approximation_plot, bisection_plot, convergence_plot, fixed_point_plot,
+    differentiation_plot, lagrange_comparison_plot, lagrange_plot,
+    newton_all_tangents_plot, newton_plot,
     differentiation_plot, lagrange_plot, newton_all_tangents_plot, newton_plot,
 )
 
@@ -39,6 +42,9 @@ border-bottom:1px solid rgba(128,128,128,.25)}
 justify-content:center;margin-right:.5rem;background:#3156a3;color:white;font-size:.88rem}
 div[data-testid="stMetric"]{border:1px solid rgba(128,128,128,.22);padding:.75rem;
 border-radius:12px;background:rgba(128,128,128,.035)}
+/* Streamlit solo ofrece una barra lateral; la ubicamos a la derecha como cajón desplegable. */
+section[data-testid="stSidebar"]{left:auto;right:0;border-left:1px solid rgba(128,128,128,.22)}
+[data-testid="stSidebarCollapsedControl"]{left:auto;right:1rem}
 </style>""", unsafe_allow_html=True)
 
 METHODS = {
@@ -49,6 +55,7 @@ METHODS = {
     "Aitken": ("↗", "Aitken Δ²", "Tomar un atajo para acelerar una sucesión."),
     "Comparar métodos": ("VS", "Comparar métodos", "Contrastar aproximaciones, errores y velocidad."),
     "Construir función": ("Σ", "Construir una función", "Interpolar datos discretos con bases de Lagrange."),
+    "Interpolar desde función": ("f→Σ", "Interpolar desde una función", "Elegir f(x), solicitar nodos y construir su interpolante."),
     "Derivación numérica": ("f′", "Derivación numérica", "Estimar una pendiente a partir de valores cercanos."),
     "Laboratorio": ("⚗", "Laboratorio", "Modificar parámetros y observar consecuencias."),
     "Teoría": ("📖", "Teoría", "Fundamentos matemáticos de los métodos."),
@@ -106,6 +113,39 @@ def math_keyboard(target: str) -> None:
         button_col.button(f"Insertar raíz {int(root_index)} de x", key=f"root_btn_{target}",
                           on_click=_append_symbol, args=(target, f"root(x,{int(root_index)})"),
                           use_container_width=True)
+
+
+def calculator_drawer() -> None:
+    """Calculadora persistente dentro del cajón lateral derecho."""
+    with st.sidebar.expander("🧮 Calculadora numérica", expanded=False):
+        st.caption("Abrila cuando necesites preparar un dato. No usa `eval`.")
+        st.text_input("Cálculo", "", key="calculator_input",
+                      help="Ejemplo: sin(pi/2) + root(8,3) + 2^3")
+        keys = [("7", "7"), ("8", "8"), ("9", "9"), ("÷", "/"),
+                ("4", "4"), ("5", "5"), ("6", "6"), ("×", "*"),
+                ("1", "1"), ("2", "2"), ("3", "3"), ("−", "-"),
+                ("0", "0"), (".", "."), ("(", "("), (")", ")"),
+                ("+", "+"), ("xʸ", "^"), ("√", "sqrt("), ("ⁿ√", "root("),
+                ("sin", "sin("), ("cos", "cos("), ("tan", "tan("), ("ln", "log("),
+                ("π", "pi"), ("e", "e"), ("|x|", "abs("), (",", ",")]
+        columns = st.columns(4)
+        for index, (label, value) in enumerate(keys):
+            columns[index % 4].button(label, key=f"calc_key_{index}",
+                                      on_click=_append_symbol, args=("calculator_input", value),
+                                      use_container_width=True)
+        actions = st.columns(2)
+        actions[0].button("Borrar", key="calc_clear", on_click=lambda: st.session_state.update(calculator_input=""), use_container_width=True)
+        if actions[1].button("Calcular", key="calc_run", type="primary", use_container_width=True):
+            try:
+                result = calculate(st.session_state.calculator_input)
+                st.session_state.calculator_result = result
+            except ValueError as exc:
+                st.session_state.pop("calculator_result", None)
+                st.error(str(exc))
+        if result := st.session_state.get("calculator_result"):
+            st.latex(rf"{sp.latex(result.expression)}={sp.latex(result.exact)}")
+            st.code(str(result.exact), language=None)
+            st.caption(f"Decimal: {result.decimal}. Copiá el valor exacto o decimal al campo que necesites.")
 
 
 def render_formula(text: str, name: str):
@@ -576,6 +616,12 @@ def lagrange_page() -> None:
             "0, 0.5, 1, 1.5, 2",
             help="Separalos con comas. Se permiten hasta 50 valores.",
         )
+        reference_text = st.text_input(
+            "Función original f(x) (opcional)", "", key="lag_reference",
+            help="Si la conocés, se verifican los nodos y se crea un gráfico de comparación separado.",
+        )
+        if reference_text.strip():
+            st.caption("La función es solo una referencia: los nodos siempre se interpolan, aunque no coincidan con ella.")
         show_components = st.checkbox("Mostrar también los términos yᵢ·Lᵢ(x) en el gráfico", value=True)
         display_digits = int(st.number_input("Decimales mostrados", 2, 100, 10, key="lag_digits"))
         if node_count > 10:
@@ -587,6 +633,7 @@ def lagrange_page() -> None:
         with st.container(border=True):
             st.write(f"**Nodos:** {node_count} · **Grado máximo:** {node_count-1} · **Índices i,j:** 0 a {node_count-1}, con j≠i")
             st.dataframe(nodes, use_container_width=True, hide_index=True)
+            reference_parsed = render_formula(reference_text, "f") if reference_text.strip() else None
     with action:
         run = st.button("Construir función", type="primary", key="run_lagrange", use_container_width=True)
     if run:
@@ -595,12 +642,15 @@ def lagrange_page() -> None:
                 raise ValueError("Todos los nodos deben tener valores x_i e y_i.")
             evaluations = parse_evaluation_values(evaluation_text)
             result = build_lagrange(nodes["x_i"].tolist(), nodes["y_i"].tolist())
-            st.session_state.lagrange_result = (result, evaluations, display_digits, show_components)
+            if reference_text.strip() and reference_parsed is None:
+                raise ValueError("Corregí la función original antes de construir el polinomio.")
+            st.session_state.lagrange_result = (result, evaluations, display_digits, show_components,
+                                                reference_parsed)
         except ValueError as exc:
             st.error(str(exc))
     if "lagrange_result" not in st.session_state:
         return
-    result, evaluations, display_digits, show_components = st.session_state.lagrange_result
+    result, evaluations, display_digits, show_components, reference_parsed = st.session_state.lagrange_result
 
     section(3, "Bases de Lagrange y valores de i, j")
     col_i, col_j = st.columns(2)
@@ -633,7 +683,24 @@ def lagrange_page() -> None:
 
     section(5, "Gráfico aproximado y puntos evaluados")
     st.plotly_chart(lagrange_plot(result, evaluations, show_components), use_container_width=True)
-    st.caption("La curva interpola exactamente los nodos rojos. Los rombos verdes son valores evaluados en la función final.")
+    st.caption("La curva violeta interpola exactamente los nodos rojos. Los rombos verdes son valores evaluados en la función final.")
+
+    if reference_parsed is not None:
+        st.markdown("#### Verificación de la función original en cada nodo")
+        verification_rows = []
+        for x_value, y_value in zip(result.x_values, result.y_values):
+            original = sp.simplify(reference_parsed.expression.subs(X, x_value))
+            signed = sp.simplify(result.polynomial.subs(X, x_value) - original)
+            absolute = sp.Abs(signed)
+            relative = None if original == 0 else sp.simplify(absolute / sp.Abs(original))
+            verification_rows.append({"x": str(x_value), "y ingresado": str(y_value),
+                                      "f(x) original": str(original), "Coincide": sp.simplify(y_value-original) == 0,
+                                      "Error firmado": str(signed), "Error absoluto": str(absolute),
+                                      "Error relativo": "no definido" if relative is None else str(relative)})
+        st.dataframe(pd.DataFrame(verification_rows), hide_index=True, use_container_width=True)
+        st.markdown("#### Gráfico independiente de comparación")
+        st.plotly_chart(lagrange_comparison_plot(result, reference_parsed.expression), use_container_width=True)
+        st.caption("La línea celeste es la función original y la violeta discontinua es el polinomio. Que coincidan en los nodos no implica que coincidan entre ellos.")
 
     section(6, "Valores evaluados en la función final")
     evaluation_rows = []
@@ -751,6 +818,68 @@ def differentiation_page() -> None:
     st.markdown(f"**Resumen:** con {result.scheme.lower()} y h={result.h}, la pendiente estimada en x₀={result.point} es {result.approximation}.")
 
 
+def interpolate_function_page() -> None:
+    method_header("Interpolar desde función")
+    explain("Construir un polinomio que copie una función en nodos elegidos.",
+            "Cuando conocés f(x) y querés estudiar una aproximación polinómica.",
+            "Evalúa primero todos los nodos y luego aplica Lagrange sin reemplazarlos por muestras aproximadas.",
+            r"y_i=f(x_i),\qquad P_n(x)=\sum_{i=0}^{n}y_iL_i(x)")
+    section(1, "Ingresar primero la función y después los nodos")
+    with st.container(border=True):
+        ftext = st.text_input("Función original f(x)", "sin(x)", key="if_function",
+                              help="La función se interpreta con el parser seguro y se evalúa exactamente cuando es posible.")
+        math_keyboard("if_function")
+        nodes_text = st.text_input("Nodos x", "0, pi/4, pi/2", key="if_nodes",
+                                   help="Entre 2 y 20 valores distintos separados por comas. Se admiten fracciones y pi.")
+        show_decimal = st.checkbox("Mostrar también valores decimales", False, key="if_decimals")
+        digits = int(st.number_input("Cantidad de decimales", 1, 15, 8, disabled=not show_decimal, key="if_digits"))
+    section(2, "Resumen de lo ingresado")
+    parsed = render_formula(ftext, "f") if ftext.strip() else None
+    st.write(f"**Nodos solicitados:** {nodes_text or '—'}")
+    if parsed is not None and nodes_text.strip():
+        st.success("🟢 La función y la lista están presentes; al ejecutar se validará cada nodo.")
+    else:
+        st.error("🔴 Completá una función válida y al menos dos nodos.")
+    if st.button("Evaluar nodos y construir", type="primary", disabled=parsed is None or not nodes_text.strip(), use_container_width=True):
+        try:
+            raw_nodes = _exact_list(nodes_text)
+            if not 2 <= len(raw_nodes) <= 20:
+                raise ValueError("Ingresá entre 2 y 20 nodos.")
+            x_values = [calculate(value).exact for value in raw_nodes]
+            y_values = []
+            for value in x_values:
+                evaluated = sp.simplify(parsed.expression.subs(X, value))
+                if evaluated.is_real is False or evaluated.is_finite is False or evaluated.has(sp.nan, sp.zoo):
+                    raise ValueError(f"La función no está definida en el nodo x={value}. Eliminá o corregí ese nodo.")
+                y_values.append(evaluated)
+            result = build_lagrange(x_values, y_values)
+            st.session_state.if_result = (result, parsed, show_decimal, digits)
+        except (ValueError, TypeError, SyntaxError) as exc:
+            st.error(f"No se pudo construir: {exc}")
+    if "if_result" not in st.session_state:
+        return
+    result, parsed, show_decimal, digits = st.session_state.if_result
+    section(3, "Nodos evaluados")
+    rows = []
+    for x_value, y_value in zip(result.x_values, result.y_values):
+        row = {"x exacto": str(x_value), "f(x) exacto": str(y_value)}
+        if show_decimal:
+            row.update({"x decimal": str(sp.N(x_value, digits)), "f(x) decimal": str(sp.N(y_value, digits))})
+        rows.append(row)
+    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+    section(4, "Polinomio calculado")
+    st.latex(rf"P_{{{result.degree}}}(x)={sp.latex(result.polynomial)}")
+    st.success("Todos los nodos fueron evaluados en la función original antes de interpolar.")
+    section(5, "Gráfico del polinomio")
+    st.plotly_chart(lagrange_plot(result), use_container_width=True)
+    st.caption("La curva violeta es el polinomio calculado y los puntos rojos son los valores exactos f(xᵢ).")
+    section(6, "Comparación con la función original")
+    st.plotly_chart(lagrange_comparison_plot(result, parsed.expression), use_container_width=True)
+    st.caption("Este gráfico está separado para distinguir claramente la función original del interpolante.")
+    with st.expander("¿Por qué pueden diferir entre nodos?"):
+        st.write("Lagrange obliga al polinomio a coincidir en cada nodo, no en todos los puntos. La elección y distribución de nodos determina la calidad de la aproximación entre ellos.")
+
+
 def home_page() -> None:
     method_header("Inicio")
     st.write("Todas las pantallas siguen el mismo recorrido: datos → resumen → gráfico → resultado → tabla → convergencia.")
@@ -774,12 +903,28 @@ def home_page() -> None:
         ("🗓", "Próximamente", "Integración, Monte Carlo y ecuaciones diferenciales; todavía no implementados."),
         ("📖", "Teoría", "Explica las hipótesis detrás de cada algoritmo."),
     ]
+    details = {
+        "1. Conceptos básicos y errores": (r"E_a=|x_n-x_{n-1}|,\quad r_n=|f(x_n)|", "El error compara aproximaciones; el residuo mide cuánto falta para satisfacer la ecuación. Son preguntas distintas."),
+        "Bisección": (r"c_n=\frac{a_n+b_n}{2}", "Se apoya en continuidad y cambio de signo. Es robusta porque nunca abandona el intervalo que encierra la raíz."),
+        "Punto Fijo": (r"x_{n+1}=g(x_n)", "Busca una función contractiva que acerque puntos. La condición |g′|<1 explica por qué las distancias tienden a reducirse."),
+        "Newton–Raphson": (r"x_{n+1}=x_n-\frac{f(x_n)}{f'(x_n)}", "Reemplaza localmente la curva por su tangente. Puede ser muy rápido, pero una derivada casi nula o un x₀ inadecuado lo desestabilizan."),
+        "Aitken Δ²": (r"x_n^*=x_n-\frac{(\Delta x_n)^2}{\Delta^2x_n}", "Usa tres términos consecutivos para estimar el límite de una sucesión que ya converge; no convierte una sucesión divergente en convergente."),
+        "Interpolación de Lagrange": (r"P_n(x)=\sum_{i=0}^ny_iL_i(x)", "Cada base vale uno en su propio nodo y cero en los demás. Por eso la suma reproduce exactamente todos los datos."),
+        "Derivación numérica": (r"f'(x_0)\approx\frac{f(x_0+h)-f(x_0-h)}{2h}", "Aproxima una pendiente con cambios cercanos. h controla la escala de observación y el esquema centrado tiene orden dos."),
+        "Próximamente": (r"\text{Integración, Monte Carlo y EDO}", "Estos contenidos permanecen como hoja de ruta y no están implementados en esta etapa."),
+        "Comparación": (r"\text{hipótesis + error + costo}", "No hay un método universalmente mejor: conviene comparar requisitos, robustez, residuo y cantidad de pasos."),
+        "Teoría": (r"\text{modelo}\to\text{método}\to\text{interpretación}", "Las fórmulas son herramientas: comprender sus hipótesis permite reconocer cuándo un resultado numérico es confiable."),
+    }
     for start in range(0, len(cards), 3):
         for column, (icon, title, text) in zip(st.columns(3), cards[start:start + 3]):
             with column:
                 with st.container(border=True):
                     st.markdown(f"### {icon} {title}")
                     st.write(text)
+                    formula, reason = details[title]
+                    with st.expander("Ver función, razón y teoría"):
+                        st.latex(formula)
+                        st.write(reason)
 
 
 def laboratory_page() -> None:
@@ -816,6 +961,11 @@ NAVIGATION = {"⌂  Inicio": "Inicio", "½  Bisección": "Bisección", "●  Pun
               "╱╲  Newton–Raphson": "Newton-Raphson", "↗  Aitken Δ²": "Aitken",
               "VS  Comparar métodos": "Comparar métodos", "⚗  Laboratorio": "Laboratorio",
               "Σ  Construir función": "Construir función",
+              "f→Σ  Interpolar desde función": "Interpolar desde función",
+              "f′  Derivación numérica": "Derivación numérica",
+              "📖  Teoría": "Teoría"}
+st.sidebar.title("MODELADO Y SIMULACIÓN")
+calculator_drawer()
               "f′  Derivación numérica": "Derivación numérica",
               "📖  Teoría": "Teoría"}
 st.sidebar.title("MODELADO Y SIMULACIÓN")
@@ -831,6 +981,7 @@ elif page == "Newton-Raphson": newton_page()
 elif page == "Aitken": aitken_page()
 elif page == "Comparar métodos": comparison_page()
 elif page == "Construir función": lagrange_page()
+elif page == "Interpolar desde función": interpolate_function_page()
 elif page == "Derivación numérica": differentiation_page()
 elif page == "Laboratorio": laboratory_page()
 else: theory_page()

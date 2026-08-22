@@ -101,7 +101,7 @@ def lagrange_plot(result, evaluation_values=None, show_components=False):
             ))
     figure.add_trace(go.Scatter(
         x=xs, y=ys, mode="lines", name=f"P{result.degree}(x)",
-        line=dict(color="#111827", width=4),
+        line=dict(color="#7c3aed", width=4),
     ))
     figure.add_trace(go.Scatter(
         x=node_x, y=node_y, mode="markers+text", name="Nodos",
@@ -120,6 +120,29 @@ def lagrange_plot(result, evaluation_values=None, show_components=False):
         title="Función construida por interpolación de Lagrange",
         xaxis_title="x", yaxis_title="P(x)", hovermode="x unified",
     )
+    return figure
+
+
+def lagrange_comparison_plot(result, reference_expression):
+    """Compara en un gráfico independiente el interpolante y la función original."""
+    node_x = np.asarray([float(value) for value in result.x_values], dtype=float)
+    span = max(float(np.ptp(node_x)), 1.0)
+    xs = np.linspace(float(np.min(node_x) - .12 * span), float(np.max(node_x) + .12 * span), 800)
+    symbol = sp.Symbol("x", real=True)
+    polynomial_fn = sp.lambdify(symbol, result.polynomial, "numpy")
+    reference_fn = sp.lambdify(symbol, reference_expression, "numpy")
+    with np.errstate(all="ignore"):
+        polynomial_y = np.asarray(polynomial_fn(xs), dtype=float)
+        reference_y = np.asarray(reference_fn(xs), dtype=float)
+    if polynomial_y.ndim == 0:
+        polynomial_y = np.full_like(xs, float(polynomial_y))
+    if reference_y.ndim == 0:
+        reference_y = np.full_like(xs, float(reference_y))
+    figure = go.Figure()
+    figure.add_trace(go.Scatter(x=xs, y=reference_y, name="Función original f(x)", line=dict(color="#0891b2", width=3)))
+    figure.add_trace(go.Scatter(x=xs, y=polynomial_y, name=f"Polinomio P{result.degree}(x)", line=dict(color="#7c3aed", width=4, dash="dash")))
+    figure.add_trace(go.Scatter(x=node_x, y=[float(y) for y in result.y_values], mode="markers", name="Nodos", marker=dict(color="#e63946", size=10)))
+    figure.update_layout(title="Comparación independiente: función original y polinomio", xaxis_title="x", yaxis_title="y", hovermode="x unified")
     return figure
 
 

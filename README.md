@@ -53,6 +53,7 @@ pytest -q
 ## Funcionalidad
 
 - Entrada segura de expresiones con SymPy, sin `eval()` directo.
+- Calculadora numérica desplegable en el lateral derecho, con potencias, raíces de cualquier índice, funciones trigonométricas y constantes como π y e.
 - Bisección con verificación de Bolzano, intervalo animado y estimación teórica.
 - Punto Fijo con cobweb, análisis aproximado de contracción, compacidad y Banach.
 - Newton con derivada simbólica y tangente seleccionable por iteración.
@@ -70,6 +71,8 @@ pytest -q
 - Identidad visual por método: ½ Bisección, ● Punto Fijo, ╱╲ Newton, ↗ Aitken, VS Comparación y 📖 Teoría.
 - Explicaciones breves centradas en qué busca cada método, cuándo conviene y qué hace en cada paso.
 - Constructor de funciones por interpolación de Lagrange con hasta 20 nodos.
+- Comparación opcional de Lagrange con una función original, incluida la verificación exacta de cada nodo y un gráfico independiente.
+- Recorrido alternativo “Interpolar desde función”: primero solicita f(x), después los nodos y evalúa automáticamente todos sus valores.
 - Derivación desde una función o tabla mediante diferencias hacia adelante, hacia atrás y centrada, conservando fracciones exactas.
 - Visualización de cada base L_i(x), factores para los índices i y j, términos y_iL_i(x), polinomio final, gráfico y tabla de valores evaluados.
 - Precisión de presentación configurable hasta 15 decimales, sin redondeo interno.
