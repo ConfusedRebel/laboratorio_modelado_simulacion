@@ -29,7 +29,7 @@ def _number(value: int | float | str | sp.Expr) -> sp.Expr:
 @dataclass(frozen=True)
 class DifferentiationValue:
     x: sp.Expr
-    y: sp.Expr | None
+    y: sp.Expr
     role: str
 
 
@@ -47,12 +47,10 @@ class DifferentiationResult:
     absolute_error: sp.Expr | None = None
     relative_error: sp.Expr | None = None
     expression: sp.Expr | None = None
-    table_values: tuple[DifferentiationValue, ...] = ()
 
 
 def _finish(scheme: str, point: sp.Expr, h: sp.Expr,
-            values: tuple[DifferentiationValue, ...], expression: sp.Expr | None = None,
-            table_values: tuple[DifferentiationValue, ...] = ()) -> DifferentiationResult:
+            values: tuple[DifferentiationValue, ...], expression: sp.Expr | None = None) -> DifferentiationResult:
     y = {item.role: item.y for item in values}
     if scheme == "forward":
         approximation = sp.simplify((y["f(x₀+h)"] - y["f(x₀)"]) / h)
@@ -66,7 +64,7 @@ def _finish(scheme: str, point: sp.Expr, h: sp.Expr,
     relative = None if exact in (None, 0) else sp.simplify(absolute / sp.Abs(exact))
     return DifferentiationResult(
         SCHEMES[scheme][0], point, h, approximation, SCHEMES[scheme][1], values,
-        approximation, exact, signed, absolute, relative, expression, table_values,
+        approximation, exact, signed, absolute, relative, expression,
     )
 
 
@@ -87,15 +85,7 @@ def differentiate_function(expression: sp.Expr, point, h, scheme: str) -> Differ
         if y_value.is_real is False or y_value.is_finite is False or y_value.has(sp.zoo, sp.nan):
             raise ValueError(f"La función no está definida en x={x_value}. Cambiá x₀, h o el esquema.")
         values.append(DifferentiationValue(x_value, y_value, role))
-    table_rows = []
-    for offset, role in ((-1, "Un paso atrás"), (0, "Punto elegido"), (1, "Un paso adelante")):
-        table_x = point + offset * h
-        table_y = sp.simplify(expression.subs(X, table_x))
-        if table_y.is_real is False or table_y.is_finite is False or table_y.has(sp.zoo, sp.nan):
-            table_y = None
-        table_rows.append(DifferentiationValue(table_x, table_y, role))
-    table_values = tuple(table_rows)
-    return _finish(scheme, point, h, tuple(values), expression, table_values)
+    return _finish(scheme, point, h, tuple(values), expression)
 
 
 def differentiate_nodes(x_values: Sequence, y_values: Sequence, point, scheme: str) -> DifferentiationResult:
@@ -124,8 +114,4 @@ def differentiate_nodes(x_values: Sequence, y_values: Sequence, point, scheme: s
     roles = {"forward": ("f(x₀)", "f(x₀+h)"), "backward": ("f(x₀−h)", "f(x₀)"),
              "centered": ("f(x₀−h)", "f(x₀+h)")}[scheme]
     values = tuple(DifferentiationValue(x, lookup[x], role) for x, role in zip(required, roles))
-    table_values = tuple(
-        DifferentiationValue(point + offset * h, lookup.get(point + offset * h), role)
-        for offset, role in ((-1, "Un paso atrás"), (0, "Punto elegido"), (1, "Un paso adelante"))
-    )
-    return _finish(scheme, point, h, values, table_values=table_values)
+    return _finish(scheme, point, h, values)

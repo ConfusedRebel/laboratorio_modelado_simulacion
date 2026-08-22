@@ -23,6 +23,7 @@ from visualizations.plots import (
     approximation_plot, bisection_plot, convergence_plot, fixed_point_plot,
     differentiation_plot, lagrange_comparison_plot, lagrange_plot,
     newton_all_tangents_plot, newton_plot,
+    differentiation_plot, lagrange_plot, newton_all_tangents_plot, newton_plot,
 )
 
 st.set_page_config(page_title="Modelado y Simulación", page_icon="◑", layout="wide")
@@ -646,13 +647,13 @@ def lagrange_page() -> None:
             result = build_lagrange(nodes["x_i"].tolist(), nodes["y_i"].tolist())
             if reference_text.strip() and reference_parsed is None:
                 raise ValueError("Corregí la función original antes de construir el polinomio.")
-            st.session_state.lagrange_result = (result, evaluations, display_digits, result_format, show_components,
+            st.session_state.lagrange_result = (result, evaluations, display_digits, show_components,
                                                 reference_parsed)
         except ValueError as exc:
             st.error(str(exc))
     if "lagrange_result" not in st.session_state:
         return
-    result, evaluations, display_digits, result_format, show_components, reference_parsed = st.session_state.lagrange_result
+    result, evaluations, display_digits, show_components, reference_parsed = st.session_state.lagrange_result
 
     section(3, "Bases de Lagrange y valores de i, j")
     col_i, col_j = st.columns(2)
@@ -765,13 +766,8 @@ def differentiation_page() -> None:
                   "Diferencia centrada": "centered"}
         label = st.selectbox("Esquema", list(labels), index=2,
                              help="Centrada es de orden 2; adelante y atrás son de orden 1.")
-        result_format = st.radio("Formato de resultados", ["Fracciones / exacto", "Decimales"],
-                                 horizontal=True, help="Podés cambiar la presentación sin recalcular.")
-        digits = int(st.number_input("Decimales", 1, 15, 8, disabled=result_format != "Decimales"))
-        request_relative_error = st.checkbox(
-            "Calcular error relativo", value=False, disabled=source != "Función",
-            help="Necesita una función para comparar con su derivada exacta. Se calcula como |error|/|f′(x₀)|.",
-        )
+        show_decimal = st.checkbox("Mostrar aproximaciones decimales", False)
+        digits = int(st.number_input("Decimales", 1, 15, 8, disabled=not show_decimal))
     section(2, "Resumen de lo ingresado")
     parsed = render_formula(ftext, "f") if source == "Función" and ftext.strip() else None
     st.write(f"**Fuente:** {source} · **x₀:** {point or '—'} · **Esquema:** {label}")
@@ -790,14 +786,12 @@ def differentiation_page() -> None:
                 result = differentiate_function(parsed.expression, point, h, labels[label])
             else:
                 result = differentiate_nodes(_exact_list(xs_text), _exact_list(ys_text), point, labels[label])
-            st.session_state.der_result = (result, result_format, digits, request_relative_error)
+            st.session_state.der_result = (result, show_decimal, digits)
         except ValueError as exc:
             st.error(f"No se pudo calcular: {exc}")
     if "der_result" not in st.session_state:
         return
-    result, result_format, digits, request_relative_error = st.session_state.der_result
-    as_decimal = result_format == "Decimales"
-    present = lambda value: "no disponible" if value is None else str(sp.N(value, digits) if as_decimal else value)
+    result, show_decimal, digits = st.session_state.der_result
     section(3, "Gráfico principal")
     st.plotly_chart(differentiation_plot(result), use_container_width=True)
     st.caption("La recta naranja pasa por el punto seleccionado con la pendiente aproximada. Los puntos rojos son los valores usados en el cociente.")
@@ -810,22 +804,15 @@ def differentiation_page() -> None:
     st.latex(formulas[result.scheme])
     numerator = (result.values[-1].y - result.values[0].y)
     denominator = result.h * (2 if result.scheme == "Diferencia centrada" else 1)
-    shown = lambda value: sp.N(value, digits) if as_decimal else value
-    st.latex(rf"f'({sp.latex(shown(result.point))})\approx\frac{{{sp.latex(shown(result.values[-1].y))}-({sp.latex(shown(result.values[0].y))})}}{{{sp.latex(shown(denominator))}}}={sp.latex(shown(result.approximation))}")
-    st.success(f"La pendiente aproximada es **{present(result.approximation)}**. El esquema es de orden O(h^{result.order}).")
+    st.latex(rf"f'({sp.latex(result.point)})\approx\frac{{{sp.latex(result.values[-1].y)}-({sp.latex(result.values[0].y)})}}{{{sp.latex(denominator)}}}={sp.latex(result.approximation)}")
+    decimal = f" ≈ {sp.N(result.approximation, digits)}" if show_decimal else ""
+    st.success(f"La pendiente aproximada es **{result.approximation}**{decimal}. El esquema es de orden O(h^{result.order}).")
     if result.exact_derivative is not None:
-        st.write(f"Derivada de referencia en x₀: **{present(result.exact_derivative)}**. Error firmado (aproximación − referencia): **{present(result.signed_error)}**; absoluto: **{present(result.absolute_error)}**.")
-        if request_relative_error:
-            relative_text = ("no definido porque la derivada de referencia es 0"
-                             if result.relative_error is None else present(result.relative_error))
-            st.info(f"Error relativo solicitado: **{relative_text}**.")
+        st.write(f"Derivada exacta en x₀: **{result.exact_derivative}**. Error firmado (aproximación − exacto): **{result.signed_error}**; absoluto: **{result.absolute_error}**; relativo: **{result.relative_error if result.relative_error is not None else 'no definido porque la derivada exacta es 0'}**.")
     else:
         st.info("Como se ingresó una tabla, no hay una derivada exacta de referencia ni errores respecto de ella.")
     section(5, "Tabla de valores utilizados")
-    used_points = {value.x for value in result.values}
-    rows = [{"Posición": value.role, "x": present(value.x), "f(x)": present(value.y),
-             "Usado por el esquema": "Sí" if value.x in used_points else "No"}
-            for value in result.table_values]
+    rows = [{"Rol": value.role, "x exacto": str(value.x), "f(x) exacto": str(value.y)} for value in result.values]
     st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
     with st.expander("Ver desarrollo y significado del orden"):
         st.write("Orden 1 significa que el error de truncamiento decrece aproximadamente como h; orden 2, como h², bajo condiciones de suavidad.")
@@ -845,10 +832,8 @@ def interpolate_function_page() -> None:
         math_keyboard("if_function")
         nodes_text = st.text_input("Nodos x", "0, pi/4, pi/2", key="if_nodes",
                                    help="Entre 2 y 20 valores distintos separados por comas. Se admiten fracciones y pi.")
-        result_format = st.radio("Formato de resultados", ["Fracciones / exacto", "Decimales"],
-                                 horizontal=True, key="if_format")
-        digits = int(st.number_input("Cantidad de decimales", 1, 15, 8,
-                                     disabled=result_format != "Decimales", key="if_digits"))
+        show_decimal = st.checkbox("Mostrar también valores decimales", False, key="if_decimals")
+        digits = int(st.number_input("Cantidad de decimales", 1, 15, 8, disabled=not show_decimal, key="if_digits"))
     section(2, "Resumen de lo ingresado")
     parsed = render_formula(ftext, "f") if ftext.strip() else None
     st.write(f"**Nodos solicitados:** {nodes_text or '—'}")
@@ -869,24 +854,22 @@ def interpolate_function_page() -> None:
                     raise ValueError(f"La función no está definida en el nodo x={value}. Eliminá o corregí ese nodo.")
                 y_values.append(evaluated)
             result = build_lagrange(x_values, y_values)
-            st.session_state.if_result = (result, parsed, result_format, digits)
+            st.session_state.if_result = (result, parsed, show_decimal, digits)
         except (ValueError, TypeError, SyntaxError) as exc:
             st.error(f"No se pudo construir: {exc}")
     if "if_result" not in st.session_state:
         return
-    result, parsed, result_format, digits = st.session_state.if_result
+    result, parsed, show_decimal, digits = st.session_state.if_result
     section(3, "Nodos evaluados")
     rows = []
     for x_value, y_value in zip(result.x_values, result.y_values):
-        if result_format == "Decimales":
-            row = {"x": str(sp.N(x_value, digits)), "f(x)": str(sp.N(y_value, digits))}
-        else:
-            row = {"x": str(x_value), "f(x)": str(y_value)}
+        row = {"x exacto": str(x_value), "f(x) exacto": str(y_value)}
+        if show_decimal:
+            row.update({"x decimal": str(sp.N(x_value, digits)), "f(x) decimal": str(sp.N(y_value, digits))})
         rows.append(row)
     st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
     section(4, "Polinomio calculado")
-    shown_polynomial = sp.N(result.polynomial, digits) if result_format == "Decimales" else result.polynomial
-    st.latex(rf"P_{{{result.degree}}}(x)={sp.latex(shown_polynomial)}")
+    st.latex(rf"P_{{{result.degree}}}(x)={sp.latex(result.polynomial)}")
     st.success("Todos los nodos fueron evaluados en la función original antes de interpolar.")
     section(5, "Gráfico del polinomio")
     st.plotly_chart(lagrange_plot(result), use_container_width=True)
@@ -975,19 +958,13 @@ Cada base Lᵢ(x) vale 1 en xᵢ y 0 en los demás nodos. La suma ponderada Pₙ
 """)
 
 
-NAVIGATION = {
-    "⌂  Inicio": "Inicio",
-    "½  Bisección": "Bisección",
-    "●  Punto Fijo": "Punto Fijo",
-    "╱╲  Newton–Raphson": "Newton-Raphson",
-    "↗  Aitken Δ²": "Aitken",
-    "VS  Comparar métodos": "Comparar métodos",
-    "⚗  Laboratorio": "Laboratorio",
-    "Σ  Construir función": "Construir función",
-    "f→Σ  Interpolar desde función": "Interpolar desde función",
-    "f′  Derivación numérica": "Derivación numérica",
-    "📖  Teoría": "Teoría",
-}
+NAVIGATION = {"⌂  Inicio": "Inicio", "½  Bisección": "Bisección", "●  Punto Fijo": "Punto Fijo",
+              "╱╲  Newton–Raphson": "Newton-Raphson", "↗  Aitken Δ²": "Aitken",
+              "VS  Comparar métodos": "Comparar métodos", "⚗  Laboratorio": "Laboratorio",
+              "Σ  Construir función": "Construir función",
+              "f→Σ  Interpolar desde función": "Interpolar desde función",
+              "f′  Derivación numérica": "Derivación numérica",
+              "📖  Teoría": "Teoría"}
 st.sidebar.title("MODELADO Y SIMULACIÓN")
 calculator_drawer()
 st.sidebar.toggle("Modo avanzado", value=False, key="advanced_mode",

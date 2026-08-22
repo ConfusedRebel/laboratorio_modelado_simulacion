@@ -11,8 +11,6 @@ def test_centered_function_is_exact_for_quadratic():
     assert result.exact_derivative == 4
     assert result.absolute_error == 0
     assert result.order == 2
-    assert [value.x for value in result.table_values] == [sp.Rational(19, 10), 2, sp.Rational(21, 10)]
-    assert [value.role for value in result.table_values] == ["Un paso atrás", "Punto elegido", "Un paso adelante"]
 
 
 def test_forward_preserves_fractions_and_reports_error():
@@ -27,13 +25,6 @@ def test_nodes_centered():
     assert result.approximation == 1
     assert result.h == sp.Rational(1, 2)
     assert result.exact_derivative is None
-    assert [value.y for value in result.table_values] == [0, sp.Rational(1, 4), 1]
-
-
-def test_table_marks_unavailable_neighbour_without_breaking_one_sided_scheme():
-    result = differentiate_nodes([0, 1], [0, 1], 0, "forward")
-    assert result.approximation == 1
-    assert result.table_values[0].y is None
 
 
 @pytest.mark.parametrize("xs,ys,message", [

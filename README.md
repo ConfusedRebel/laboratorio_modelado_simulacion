@@ -74,8 +74,6 @@ pytest -q
 - Comparación opcional de Lagrange con una función original, incluida la verificación exacta de cada nodo y un gráfico independiente.
 - Recorrido alternativo “Interpolar desde función”: primero solicita f(x), después los nodos y evalúa automáticamente todos sus valores.
 - Derivación desde una función o tabla mediante diferencias hacia adelante, hacia atrás y centrada, conservando fracciones exactas.
-- Selector de presentación exacta/fraccionaria o decimal en interpolación y derivación, con error relativo opcional cuando existe una función de referencia.
-- Tabla de derivación con un paso hacia atrás, el punto elegido y un paso hacia adelante, indicando cuáles valores utiliza cada esquema.
 - Visualización de cada base L_i(x), factores para los índices i y j, términos y_iL_i(x), polinomio final, gráfico y tabla de valores evaluados.
 - Precisión de presentación configurable hasta 15 decimales, sin redondeo interno.
 - Mensajes controlados para dominios inválidos, derivada o denominador casi nulos, ciclos y divergencia.
