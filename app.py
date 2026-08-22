@@ -623,7 +623,10 @@ def lagrange_page() -> None:
         if reference_text.strip():
             st.caption("La función es solo una referencia: los nodos siempre se interpolan, aunque no coincidan con ella.")
         show_components = st.checkbox("Mostrar también los términos yᵢ·Lᵢ(x) en el gráfico", value=True)
-        display_digits = int(st.number_input("Decimales mostrados", 2, 100, 10, key="lag_digits"))
+        result_format = st.radio("Formato de resultados", ["Fracciones / exacto", "Decimales"],
+                                 horizontal=True, key="lag_format")
+        display_digits = int(st.number_input("Decimales mostrados", 2, 100, 10, key="lag_digits",
+                                             disabled=result_format != "Decimales"))
         if node_count > 10:
             st.warning("Un polinomio de grado alto puede oscilar entre nodos (fenómeno de Runge). Interpolar no garantiza una buena extrapolación.")
 
@@ -678,7 +681,8 @@ def lagrange_page() -> None:
             st.latex(rf"y_{{{basis.i}}}L_{{{basis.i}}}(x)={sp.latex(basis.weighted)}")
 
     section(4, "Función final construida")
-    st.latex(rf"P_{{{result.degree}}}(x)={sp.latex(result.polynomial)}")
+    displayed_polynomial = sp.N(result.polynomial, display_digits) if result_format == "Decimales" else result.polynomial
+    st.latex(rf"P_{{{result.degree}}}(x)={sp.latex(displayed_polynomial)}")
     st.success(f"Se construyó el único polinomio interpolante de grado ≤ {node_count-1} que pasa por todos los nodos.")
 
     section(5, "Gráfico aproximado y puntos evaluados")
@@ -706,11 +710,8 @@ def lagrange_page() -> None:
     evaluation_rows = []
     for value in evaluations:
         exact = sp.simplify(result.polynomial.subs(sp.Symbol("x", real=True), sp.Rational(str(value))))
-        evaluation_rows.append({
-            "x": value,
-            "P(x) exacto": sp.sstr(exact),
-            "P(x) aproximado": fixed_decimal(str(sp.N(exact, display_digits+8)), display_digits),
-        })
+        evaluation_rows.append({"x": value, "P(x)": (fixed_decimal(str(sp.N(exact, display_digits+8)), display_digits)
+                                                        if result_format == "Decimales" else sp.sstr(exact))})
     evaluation_frame = pd.DataFrame(evaluation_rows)
     st.dataframe(evaluation_frame, use_container_width=True, hide_index=True)
     st.download_button("Descargar valores evaluados CSV", evaluation_frame.to_csv(index=False).encode("utf-8"),
