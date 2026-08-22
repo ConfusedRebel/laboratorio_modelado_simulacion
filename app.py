@@ -23,6 +23,7 @@ from visualizations.plots import (
     approximation_plot, bisection_plot, convergence_plot, fixed_point_plot,
     differentiation_plot, lagrange_comparison_plot, lagrange_plot,
     newton_all_tangents_plot, newton_plot,
+    differentiation_plot, lagrange_plot, newton_all_tangents_plot, newton_plot,
 )
 
 st.set_page_config(page_title="Modelado y Simulación", page_icon="◑", layout="wide")
@@ -965,6 +966,9 @@ NAVIGATION = {"⌂  Inicio": "Inicio", "½  Bisección": "Bisección", "●  Pun
               "📖  Teoría": "Teoría"}
 st.sidebar.title("MODELADO Y SIMULACIÓN")
 calculator_drawer()
+              "f′  Derivación numérica": "Derivación numérica",
+              "📖  Teoría": "Teoría"}
+st.sidebar.title("MODELADO Y SIMULACIÓN")
 st.sidebar.toggle("Modo avanzado", value=False, key="advanced_mode",
                   help="Muestra controles secundarios; el modo guiado es el predeterminado.")
 st.sidebar.caption("🟢 cumplida · 🟡 dudosa · 🔴 no cumplida")
