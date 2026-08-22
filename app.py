@@ -966,9 +966,6 @@ NAVIGATION = {"⌂  Inicio": "Inicio", "½  Bisección": "Bisección", "●  Pun
               "📖  Teoría": "Teoría"}
 st.sidebar.title("MODELADO Y SIMULACIÓN")
 calculator_drawer()
-              "f′  Derivación numérica": "Derivación numérica",
-              "📖  Teoría": "Teoría"}
-st.sidebar.title("MODELADO Y SIMULACIÓN")
 st.sidebar.toggle("Modo avanzado", value=False, key="advanced_mode",
                   help="Muestra controles secundarios; el modo guiado es el predeterminado.")
 st.sidebar.caption("🟢 cumplida · 🟡 dudosa · 🔴 no cumplida")
