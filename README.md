@@ -1,6 +1,6 @@
 # Laboratorio de Modelado y Simulación
 
-Aplicación educativa local para estudiar errores, métodos de búsqueda de raíces, interpolación de Lagrange y derivación numérica. El modo guiado para principiantes es el predeterminado; el modo avanzado deja visibles controles secundarios.
+Aplicación educativa local para estudiar errores, métodos de búsqueda de raíces, interpolación de Lagrange, derivación e integración numérica. El modo guiado para principiantes es el predeterminado; el modo avanzado deja visibles controles secundarios.
 
 ## Instalación
 
@@ -44,6 +44,26 @@ streamlit run app.py
 
 La aplicación no usa APIs ni necesita Internet una vez instaladas las dependencias.
 
+### Consola de comandos
+
+Para ingresar prompts y recibir el resultado directamente en la terminal:
+
+```bash
+python -m core.command_console
+```
+
+También se puede resolver un único ejercicio:
+
+```bash
+python -m core.command_console "newton f=x^3-x-2 x0=1.5 tol=8 max=100"
+```
+
+La consola acepta tanto una línea de comando como un diccionario copiado y pegado:
+
+```text
+{'command': 'newton', 'f': 'x^3-x-2', 'x0': 1.5, 'tol': 8, 'max': 100}
+```
+
 ## Pruebas
 
 ```bash
@@ -53,6 +73,7 @@ pytest -q
 ## Funcionalidad
 
 - Entrada segura de expresiones con SymPy, sin `eval()` directo.
+- Consola de ejercicios con comandos para resolver raíces, integrales, derivadas e interpolaciones, acompañada por un diccionario de prompts y ejemplos copiables.
 - Calculadora numérica desplegable en el lateral derecho, con potencias, raíces de cualquier índice, funciones trigonométricas y constantes como π y e.
 - Bisección con verificación de Bolzano, intervalo animado y estimación teórica.
 - Punto Fijo con cobweb, análisis aproximado de contracción, compacidad y Banach.
@@ -74,6 +95,7 @@ pytest -q
 - Comparación opcional de Lagrange con una función original, incluida la verificación exacta de cada nodo y un gráfico independiente.
 - Recorrido alternativo “Interpolar desde función”: primero solicita f(x), después los nodos y evalúa automáticamente todos sus valores.
 - Derivación desde una función o tabla mediante diferencias hacia adelante, hacia atrás y centrada, conservando fracciones exactas.
+- Integración de funciones mediante rectángulo por punto medio, trapecio y reglas de Simpson 1/3 y 3/8, simples o compuestas.
 - Visualización de cada base L_i(x), factores para los índices i y j, términos y_iL_i(x), polinomio final, gráfico y tabla de valores evaluados.
 - Precisión de presentación configurable hasta 15 decimales, sin redondeo interno.
 - Mensajes controlados para dominios inválidos, derivada o denominador casi nulos, ciclos y divergencia.
@@ -103,7 +125,6 @@ La separación permite incorporar más adelante interpolación, integración, ED
 
 Estas funciones se documentan como hoja de ruta y **no están implementadas todavía**:
 
-- **Antes del 28/8:** rectángulos, trapecios y Simpson.
 - **Antes del 4/9:** Monte Carlo básico e intervalos de confianza.
 - **Antes del 11/9:** Euler, Euler modificado y Runge–Kutta.
 - **Después del primer parcial:** sistemas dinámicos, diagramas de fase, bifurcaciones, sistemas lineales y modelos.

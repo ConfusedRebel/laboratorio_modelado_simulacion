@@ -170,3 +170,79 @@ def differentiation_plot(result):
     figure.add_trace(go.Scatter(x=[center], y=[center_y], mode="markers", name="Punto x₀", marker=dict(color="#111827", size=12, symbol="diamond")))
     figure.update_layout(title="Pendiente aproximada en el punto elegido", xaxis_title="x", yaxis_title="y")
     return figure
+
+
+def integration_plot(function, result):
+    """Muestra la función y las figuras geométricas que suma cada cuadratura."""
+    lo, hi = sorted((float(result.a), float(result.b)))
+    span = hi - lo
+    pad = max(span * .08, 0.1)
+    xs = np.linspace(lo - pad, hi + pad, 800)
+    with np.errstate(all="ignore"):
+        ys = np.asarray(function(xs), dtype=float)
+    if ys.ndim == 0:
+        ys = np.full_like(xs, float(ys))
+    ys = np.where(np.isfinite(ys), ys, np.nan)
+    point_x = np.asarray([float(point.x) for point in result.points])
+    point_y = np.asarray([float(point.fx) for point in result.points])
+    figure = go.Figure()
+    boundaries = np.asarray([float(value) for value in result.boundaries])
+
+    # Dibujar primero la aproximación deja la función original visible por encima.
+    if result.method_key in {"midpoint", "left_rectangle", "right_rectangle"}:
+        rectangle_name = {"midpoint": "Rectángulos por punto medio",
+                          "left_rectangle": "Rectángulos izquierdos",
+                          "right_rectangle": "Rectángulos derechos"}[result.method_key]
+        for index, point in enumerate(result.points):
+            left, right, height = boundaries[index], boundaries[index + 1], float(point.fx)
+            figure.add_trace(go.Scatter(
+                x=[left, left, right, right, left], y=[0, height, height, 0, 0],
+                mode="lines", fill="toself", name=rectangle_name if index == 0 else None,
+                legendgroup="aproximacion", showlegend=index == 0,
+                line=dict(color="rgba(245,158,11,.85)", width=2),
+                fillcolor="rgba(245,158,11,.22)",
+                hovertemplate=f"Subintervalo {index + 1}<br>x=[%{{x:.6f}}]<br>altura={height:.6f}<extra></extra>",
+            ))
+    elif result.method_key == "trapezoid":
+        values = [float(point.fx) for point in result.points]
+        for index, (left, right) in enumerate(zip(boundaries[:-1], boundaries[1:])):
+            figure.add_trace(go.Scatter(
+                x=[left, left, right, right, left], y=[0, values[index], values[index + 1], 0, 0],
+                mode="lines", fill="toself", name="Trapecios" if index == 0 else None,
+                legendgroup="aproximacion", showlegend=index == 0,
+                line=dict(color="rgba(245,158,11,.85)", width=2),
+                fillcolor="rgba(245,158,11,.22)",
+                hovertemplate=f"Trapecio {index + 1}<br>x=%{{x:.6f}}<br>y=%{{y:.6f}}<extra></extra>",
+            ))
+    else:
+        group_size = 2 if result.method_key == "simpson_13" else 3
+        values = np.asarray([float(point.fx) for point in result.points])
+        label = "Parábolas de Simpson 1/3" if group_size == 2 else "Cúbicas de Simpson 3/8"
+        for group_index, start in enumerate(range(0, result.n, group_size)):
+            node_x = boundaries[start:start + group_size + 1]
+            node_y = values[start:start + group_size + 1]
+            curve_x = np.linspace(node_x[0], node_x[-1], 100)
+            curve_y = np.polyval(np.polyfit(node_x, node_y, group_size), curve_x)
+            figure.add_trace(go.Scatter(
+                x=np.r_[curve_x, curve_x[-1], curve_x[0]],
+                y=np.r_[curve_y, 0, 0], mode="lines", fill="toself",
+                name=label if group_index == 0 else None, legendgroup="aproximacion",
+                showlegend=group_index == 0, line=dict(color="rgba(245,158,11,.9)", width=2),
+                fillcolor="rgba(245,158,11,.20)",
+                hovertemplate="Interpolante local<br>x=%{x:.6f}<br>P(x)=%{y:.6f}<extra></extra>",
+            ))
+
+    figure.add_trace(go.Scatter(x=xs, y=ys, mode="lines", name="f(x)",
+                                line=dict(color="#3156a3", width=3)))
+    figure.add_hline(y=0, line_color="gray", line_width=1)
+    for boundary in result.boundaries:
+        figure.add_vline(x=float(boundary), line_color="rgba(49,86,163,.24)", line_width=1)
+    figure.add_trace(go.Scatter(
+        x=point_x, y=point_y, mode="markers", name="Puntos utilizados",
+        marker=dict(color="#e63946", size=10, line=dict(color="white", width=1)),
+        customdata=[point.weight for point in result.points],
+        hovertemplate="x=%{x:.6f}<br>f(x)=%{y:.6f}<br>peso=%{customdata}<extra></extra>",
+    ))
+    figure.update_layout(title=f"{result.method}: aproximación geométrica y puntos utilizados",
+                         xaxis_title="x", yaxis_title="f(x)", hovermode="closest")
+    return figure
